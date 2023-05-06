@@ -1,0 +1,7 @@
+# just-print microservice
+
+A simple microservice in Golang that simply prints all the receiving HTTP requests.
+
+## Usage
+
+Just run it `go run .`.
