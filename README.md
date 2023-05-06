@@ -4,7 +4,7 @@ A simple microservice in Golang that simply prints all the receiving HTTP reques
 
 ## Usage
 
-Just run it `go run .`.
+Just run it `go run .`
 
 Optional flags:
 
