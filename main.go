@@ -5,13 +5,15 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
+	"time"
 
+	"github.com/pinebit/go-boot/boot"
 	"go.uber.org/zap"
 )
 
@@ -60,30 +62,22 @@ func main() {
 
 	httpServer := &http.Server{
 		Addr: fmt.Sprintf(":%d", *portFlag),
+		BaseContext: func(net.Listener) context.Context {
+			return rootCtx
+		},
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+	services := boot.Sequentially(NewHttpServer(httpServer, logger))
+	if err := services.Start(rootCtx); err != nil {
+		cancel()
+	}
 
-	go func() {
-		defer wg.Done()
-
-		logger.Infof("Listening on port: %s", httpServer.Addr)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatalw("HTTP server failed to listen", "err", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		<-rootCtx.Done()
-		if err := httpServer.Shutdown(context.Background()); err != nil {
-			logger.Errorw("HTTP server error", "err", err)
-		}
-	}()
-
-	// Wait for graceful server shutdown
-	wg.Wait()
-	logger.Info("HTTP server is stopped gracefully")
+	<-rootCtx.Done()
+	stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := services.Stop(stopCtx); err != nil {
+		logger.Errorw("failed to stop server gracefully", "err", err)
+	} else {
+		logger.Info("HTTP server is stopped gracefully")
+	}
 }
